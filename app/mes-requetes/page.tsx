@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
+import { BarreFiltres } from "@/components/BarreFiltres";
+import { StatutBadge } from "@/components/StatutBadge";
 import { getElu, type EluSession } from "@/lib/elu";
-import { labelStatut, labelTheme } from "@/lib/statuts";
+import { labelTheme } from "@/lib/statuts";
 import type { Territoire } from "@/lib/territoire";
 
 type Reponse = { texte: string; created_at: string; auteur: string };
@@ -21,13 +23,6 @@ type Doleance = {
   reponses: Reponse[];
 };
 
-const couleurStatut: Record<string, string> = {
-  deposee: "#0063cb",
-  transmise: "#6a6af4",
-  en_traitement: "#b34000",
-  repondue: "#18753c",
-};
-
 export default function MesRequetesPage() {
   const router = useRouter();
   const [elu, setEluState] = useState<EluSession | null>(null);
@@ -36,6 +31,8 @@ export default function MesRequetesPage() {
   const [chargement, setChargement] = useState(true);
   const [reponseEnCours, setReponseEnCours] = useState<Record<string, string>>({});
   const [envoiId, setEnvoiId] = useState<string | null>(null);
+  const [ftheme, setFtheme] = useState("");
+  const [fstatut, setFstatut] = useState("");
 
   useEffect(() => {
     const e = getElu();
@@ -71,6 +68,14 @@ export default function MesRequetesPage() {
     const repondues = doleances.filter((d) => d.statut === "repondue").length;
     return { total, enCours, repondues };
   }, [doleances]);
+
+  const affichees = useMemo(
+    () =>
+      doleances.filter(
+        (d) => (!ftheme || d.theme === ftheme) && (!fstatut || d.statut === fstatut)
+      ),
+    [doleances, ftheme, fstatut]
+  );
 
   const envoyerReponse = async (id: string) => {
     const texte = (reponseEnCours[id] ?? "").trim();
@@ -205,13 +210,21 @@ export default function MesRequetesPage() {
         </details>
 
         <h2 className="fr-h4">Doléances à traiter</h2>
+        {doleances.length > 0 && (
+          <BarreFiltres
+            theme={ftheme}
+            statut={fstatut}
+            onTheme={setFtheme}
+            onStatut={setFstatut}
+          />
+        )}
         {chargement ? (
           <p>Chargement…</p>
-        ) : doleances.length === 0 ? (
-          <p>Aucune doléance sur ce territoire.</p>
+        ) : affichees.length === 0 ? (
+          <p>Aucune doléance ne correspond à ces critères.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {doleances.map((d) => (
+            {affichees.map((d) => (
               <article
                 key={d.id}
                 style={{
@@ -243,15 +256,7 @@ export default function MesRequetesPage() {
                     {labelTheme(d.theme)}
                     {d.urgence === "haute" ? " · urgent" : ""}
                   </span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: couleurStatut[d.statut] ?? "#666",
-                    }}
-                  >
-                    {labelStatut(d.statut)}
-                  </span>
+                  <StatutBadge statut={d.statut} />
                 </div>
                 <p style={{ margin: "0 0 4px", fontSize: 15 }}>{d.texte_anonymise}</p>
                 <p style={{ margin: 0, fontSize: 12, color: "#666" }}>

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
-import { labelStatut, labelTheme } from "@/lib/statuts";
+import { BarreFiltres } from "@/components/BarreFiltres";
+import { StatutBadge } from "@/components/StatutBadge";
+import { labelTheme } from "@/lib/statuts";
 import type { Territoire } from "@/lib/territoire";
 
 type Reponse = { texte: string; created_at: string; auteur: string };
@@ -17,17 +19,14 @@ type Doleance = {
   reponses: Reponse[];
 };
 
-const couleurStatut: Record<string, string> = {
-  deposee: "#0063cb",
-  transmise: "#6a6af4",
-  en_traitement: "#b34000",
-  repondue: "#18753c",
-};
-
 export default function ConsulterPage() {
   const [territoire, setTerritoire] = useState<Territoire | null>(null);
   const [doleances, setDoleances] = useState<Doleance[] | null>(null);
   const [chargement, setChargement] = useState(false);
+  const [ftheme, setFtheme] = useState("");
+  const [fstatut, setFstatut] = useState("");
+  const [ouvertes, setOuvertes] = useState<Record<string, boolean>>({});
+  const [survol, setSurvol] = useState<string | null>(null);
 
   const rechercher = async (t: Territoire | null) => {
     setTerritoire(t);
@@ -44,6 +43,14 @@ export default function ConsulterPage() {
     }
     setChargement(false);
   };
+
+  const filtrees = useMemo(() => {
+    if (!doleances) return [];
+    return doleances.filter(
+      (d) =>
+        (!ftheme || d.theme === ftheme) && (!fstatut || d.statut === fstatut)
+    );
+  }, [doleances, ftheme, fstatut]);
 
   return (
     <>
@@ -64,7 +71,18 @@ export default function ConsulterPage() {
 
         <SelecteurTerritoire value={territoire} onChange={rechercher} />
 
-        <div className="fr-mt-4w">
+        {doleances !== null && doleances.length > 0 && (
+          <div className="fr-mt-3w">
+            <BarreFiltres
+              theme={ftheme}
+              statut={fstatut}
+              onTheme={setFtheme}
+              onStatut={setFstatut}
+            />
+          </div>
+        )}
+
+        <div className="fr-mt-2w">
           {chargement && <p>Chargement…</p>}
           {!chargement && doleances !== null && doleances.length === 0 && (
             <p>Aucune doléance trouvée pour ce territoire.</p>
@@ -72,70 +90,96 @@ export default function ConsulterPage() {
           {!chargement && doleances !== null && doleances.length > 0 && (
             <>
               <p className="fr-text--sm">
-                <strong>{doleances.length}</strong> doléance
-                {doleances.length > 1 ? "s" : ""} pour {territoire?.nom}
+                <strong>{filtrees.length}</strong> doléance
+                {filtrees.length > 1 ? "s" : ""} affichée
+                {filtrees.length > 1 ? "s" : ""}
+                {territoire ? ` pour ${territoire.nom}` : ""}
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {doleances.map((d) => (
-                  <article
-                    key={d.id}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: 8,
-                      padding: "1rem 1.25rem",
-                    }}
-                  >
-                    <div
+                {filtrees.map((d) => {
+                  const ouverte = !!ouvertes[d.id];
+                  const repondue = d.reponses.length > 0;
+                  return (
+                    <article
+                      key={d.id}
+                      onClick={() => setOuvertes((o) => ({ ...o, [d.id]: !o[d.id] }))}
+                      onMouseEnter={() => setSurvol(d.id)}
+                      onMouseLeave={() => setSurvol(null)}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "1rem",
-                        flexWrap: "wrap",
-                        marginBottom: 6,
+                        background: survol === d.id ? "#f5f5fe" : "#fff",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: 8,
+                        padding: "1rem 1.25rem",
+                        cursor: "pointer",
+                        transition: "background 0.12s, box-shadow 0.12s",
+                        boxShadow: survol === d.id ? "0 2px 10px rgba(0,0,145,0.12)" : "none",
                       }}
                     >
-                      <span
-                        style={{
-                          background: "#eeeeff",
-                          color: "#000091",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "2px 10px",
-                          borderRadius: 4,
-                        }}
-                      >
-                        {labelTheme(d.theme)}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: couleurStatut[d.statut] ?? "#666",
-                        }}
-                      >
-                        {labelStatut(d.statut)}
-                      </span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: 15 }}>{d.texte_anonymise}</p>
-                    {d.reponses.length > 0 && (
                       <div
                         style={{
-                          marginTop: 10,
-                          background: "#f0f8f4",
-                          borderLeft: "3px solid #18753c",
-                          padding: "0.5rem 0.75rem",
-                          fontSize: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "1rem",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          marginBottom: 8,
                         }}
                       >
-                        <strong style={{ color: "#18753c" }}>
-                          Réponse de {d.reponses[0].auteur} :
-                        </strong>{" "}
-                        {d.reponses[0].texte}
+                        <span
+                          style={{
+                            background: "#eeeeff",
+                            color: "#000091",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            padding: "3px 12px",
+                            borderRadius: 4,
+                          }}
+                        >
+                          {labelTheme(d.theme)}
+                        </span>
+                        <StatutBadge statut={d.statut} />
                       </div>
-                    )}
-                  </article>
-                ))}
+
+                      <p style={{ margin: 0, fontSize: 15 }}>
+                        {ouverte
+                          ? d.texte_anonymise
+                          : d.texte_anonymise.length > 140
+                            ? d.texte_anonymise.slice(0, 140) + "…"
+                            : d.texte_anonymise}
+                      </p>
+
+                      {repondue && (
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            fontSize: 13,
+                            color: "#18753c",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {ouverte ? "▼ Réponse ci-dessous" : "▶ Cliquer pour voir la réponse apportée"}
+                        </p>
+                      )}
+
+                      {ouverte && repondue && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            background: "#f0f8f4",
+                            borderLeft: "3px solid #18753c",
+                            padding: "0.75rem 1rem",
+                            fontSize: 14,
+                          }}
+                        >
+                          <strong style={{ color: "#18753c" }}>
+                            Réponse de {d.reponses[0].auteur} :
+                          </strong>{" "}
+                          {d.reponses[0].texte}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             </>
           )}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { getFcSub } from "@/lib/citoyen";
 import { FriseStatut } from "@/components/FriseStatut";
+import { BarreFiltres } from "@/components/BarreFiltres";
 import { labelStatut, labelTheme } from "@/lib/statuts";
 
 type Reponse = { texte: string; created_at: string; auteur: string };
@@ -37,6 +38,8 @@ function dateFr(iso: string) {
 export default function SuiviPage() {
   const [doleances, setDoleances] = useState<Doleance[]>([]);
   const [chargement, setChargement] = useState(true);
+  const [ftheme, setFtheme] = useState("");
+  const [fstatut, setFstatut] = useState("");
 
   useEffect(() => {
     fetch(`/api/mes-doleances?fc=${encodeURIComponent(getFcSub())}`)
@@ -45,6 +48,14 @@ export default function SuiviPage() {
       .catch(() => setDoleances([]))
       .finally(() => setChargement(false));
   }, []);
+
+  const filtrees = useMemo(
+    () =>
+      doleances.filter(
+        (d) => (!ftheme || d.theme === ftheme) && (!fstatut || d.statut === fstatut)
+      ),
+    [doleances, ftheme, fstatut]
+  );
 
   return (
     <>
@@ -74,7 +85,13 @@ export default function SuiviPage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {doleances.map((d) => (
+            <BarreFiltres
+              theme={ftheme}
+              statut={fstatut}
+              onTheme={setFtheme}
+              onStatut={setFstatut}
+            />
+            {filtrees.map((d) => (
               <article
                 key={d.id}
                 style={{

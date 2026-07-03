@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { NiveauTerr, Territoire } from "@/lib/territoire";
 
-// Sélecteur de territoire couvrant TOUTE la France : régions, départements,
-// communes, avec recherche (autocomplétion via geo.api.gouv.fr).
+// Sélecteur de territoire couvrant TOUTE la France, avec panneau déroulant :
+// - régions / départements : la liste complète s'affiche au clic (sans taper) ;
+// - communes : autocomplétion dès la 1re lettre (geo.api.gouv.fr).
 type Suggestion = { code: string; nom: string; contexte?: string };
 
 const TYPES: { niveau: NiveauTerr; label: string }[] = [
@@ -26,46 +27,68 @@ export function SelecteurTerritoire({
     value?.niveau && value.niveau !== "national" ? value.niveau : "commune"
   );
   const [q, setQ] = useState(value?.nom ?? "");
+  const [liste, setListe] = useState<Suggestion[]>([]); // liste complète (régions/dépts)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [ouvert, setOuvert] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Charge la liste complète des régions ou départements au changement de type.
+  useEffect(() => {
+    if (niveau === "region") {
+      fetch("https://geo.api.gouv.fr/regions")
+        .then((r) => r.json())
+        .then((j: { code: string; nom: string }[]) =>
+          setListe(j.map((d) => ({ code: d.code, nom: d.nom })).sort((a, b) => a.nom.localeCompare(b.nom)))
+        )
+        .catch(() => setListe([]));
+    } else if (niveau === "departement") {
+      fetch("https://geo.api.gouv.fr/departements")
+        .then((r) => r.json())
+        .then((j: { code: string; nom: string }[]) =>
+          setListe(
+            j
+              .map((d) => ({ code: d.code, nom: d.nom, contexte: d.code }))
+              .sort((a, b) => a.nom.localeCompare(b.nom))
+          )
+        )
+        .catch(() => setListe([]));
+    } else {
+      setListe([]);
+    }
+  }, [niveau]);
+
+  // Calcule les suggestions selon le type et la saisie.
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 1) {
-      setSuggestions([]);
-      return;
-    }
-    timer.current = setTimeout(async () => {
-      try {
-        let url = "";
-        if (niveau === "commune")
-          url = `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(
-            q
-          )}&fields=code,nom,departement&boost=population&limit=8`;
-        else if (niveau === "departement")
-          url = `https://geo.api.gouv.fr/departements?nom=${encodeURIComponent(
-            q
-          )}&limit=8`;
-        else
-          url = `https://geo.api.gouv.fr/regions?nom=${encodeURIComponent(q)}`;
-
-        const r = await fetch(url);
-        const j = await r.json();
-        const items: Suggestion[] = (Array.isArray(j) ? j : []).map(
-          (d: { code: string; nom: string; departement?: { nom: string } }) => ({
-            code: d.code,
-            nom: d.nom,
-            contexte: d.departement?.nom,
-          })
-        );
-        setSuggestions(items);
-        setOuvert(true);
-      } catch {
+    if (niveau === "commune") {
+      if (q.trim().length < 1) {
         setSuggestions([]);
+        return;
       }
-    }, 220);
-  }, [q, niveau]);
+      timer.current = setTimeout(async () => {
+        try {
+          const r = await fetch(
+            `https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(q)}&fields=code,nom,departement&boost=population&limit=10`
+          );
+          const j = await r.json();
+          setSuggestions(
+            (Array.isArray(j) ? j : []).map(
+              (d: { code: string; nom: string; departement?: { nom: string } }) => ({
+                code: d.code,
+                nom: d.nom,
+                contexte: d.departement?.nom,
+              })
+            )
+          );
+        } catch {
+          setSuggestions([]);
+        }
+      }, 200);
+    } else {
+      const s = q.trim().toLowerCase();
+      setSuggestions(s ? liste.filter((x) => x.nom.toLowerCase().includes(s)) : liste);
+    }
+  }, [q, niveau, liste]);
 
   const choisir = (s: Suggestion) => {
     setQ(s.nom);
@@ -100,7 +123,7 @@ export function SelecteurTerritoire({
 
       <div className="fr-col-12 fr-col-md-6" style={{ position: "relative" }}>
         <label className="fr-label" htmlFor="sel-terr">
-          Rechercher un territoire
+          {niveau === "commune" ? "Rechercher une commune" : "Choisir dans la liste"}
         </label>
         <input
           className="fr-input"
@@ -109,14 +132,17 @@ export function SelecteurTerritoire({
           autoComplete="off"
           placeholder={
             niveau === "commune"
-              ? "Ex. : Marseille, Trouville…"
-              : niveau === "departement"
-                ? "Ex. : Gironde, Rhône…"
-                : "Ex. : Occitanie, Bretagne…"
+              ? "Tapez les premières lettres : Marseille, Trouville…"
+              : "Cliquez pour dérouler la liste"
           }
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onFocus={() => suggestions.length > 0 && setOuvert(true)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOuvert(true);
+          }}
+          onFocus={() => setOuvert(true)}
+          onClick={() => setOuvert(true)}
+          onBlur={() => setTimeout(() => setOuvert(false), 150)}
         />
         {ouvert && suggestions.length > 0 && (
           <ul
@@ -131,7 +157,7 @@ export function SelecteurTerritoire({
               background: "#fff",
               border: "1px solid #ddd",
               borderTop: "none",
-              maxHeight: 260,
+              maxHeight: 300,
               overflowY: "auto",
               boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
             }}
@@ -140,6 +166,7 @@ export function SelecteurTerritoire({
               <li key={`${s.code}-${s.nom}`}>
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => choisir(s)}
                   style={{
                     display: "block",
@@ -151,11 +178,11 @@ export function SelecteurTerritoire({
                     cursor: "pointer",
                     fontSize: 14,
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f0ff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                 >
                   {s.nom}
-                  {s.contexte ? (
-                    <span style={{ color: "#666" }}> — {s.contexte}</span>
-                  ) : null}
+                  {s.contexte ? <span style={{ color: "#666" }}> — {s.contexte}</span> : null}
                 </button>
               </li>
             ))}
