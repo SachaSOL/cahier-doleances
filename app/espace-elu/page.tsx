@@ -1,27 +1,26 @@
 import Link from "next/link";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 
-export default function ChoixPage() {
+export default function EspaceEluPage() {
   return (
     <>
       <StartDsfrOnHydration />
       <main className="fr-container fr-py-6w">
-        <h1>Choisissez votre parcours</h1>
+        <h1>Choisissez votre espace</h1>
         <p className="fr-text--lead">
-          Cette démo vous permet d’accéder à deux parcours distincts.
+          Accédez à la boîte de réception ou au tableau de bord de votre territoire.
         </p>
 
         <div className="fr-grid-row fr-grid-row--gutters">
           <div className="fr-col-12 fr-col-md-6">
             <div className="fr-card fr-card--no-border">
               <div className="fr-card__body">
-                <h2 className="fr-card__title">Je suis un citoyen</h2>
+                <h2 className="fr-card__title">Mes requêtes</h2>
                 <p className="fr-card__desc">
-                  Déposez une doléance ou un signalement à destination de votre
-                  collectivité.
+                  Consultez et traitez les doléances qui vous concernent.
                 </p>
                 <div className="fr-card__footer">
-                  <Link className="fr-btn" href="/deposer">
+                  <Link className="fr-btn" href="/mes-requetes">
                     Continuer
                   </Link>
                 </div>
@@ -32,12 +31,12 @@ export default function ChoixPage() {
           <div className="fr-col-12 fr-col-md-6">
             <div className="fr-card fr-card--no-border">
               <div className="fr-card__body">
-                <h2 className="fr-card__title">Je suis un élu ou agent</h2>
+                <h2 className="fr-card__title">Vue d&apos;ensemble par territoire</h2>
                 <p className="fr-card__desc">
-                  Accédez à l’espace de suivi et de gestion des doléances.
+                  Statistiques et répartition des doléances par thème.
                 </p>
                 <div className="fr-card__footer">
-                  <Link className="fr-btn fr-btn--secondary" href="/espace-elu">
+                  <Link className="fr-btn fr-btn--secondary" href="/dashboard">
                     Continuer
                   </Link>
                 </div>
