@@ -33,3 +33,21 @@ export function labelTheme(t: string | null): string {
   if (!t) return "Autres";
   return THEME_LABELS[t] ?? t;
 }
+
+// Couleur par thème (palette officielle DSFR), pour le graphe et les pastilles.
+export const THEME_COLORS: Record<string, string> = {
+  transports: "#6A6AF4",
+  logement: "#465F9D",
+  education: "#00A95F",
+  sante: "#E1000F",
+  securite: "#FF5D00",
+  environnement: "#297254",
+  voirie: "#8A5C2E",
+  services_publics: "#A558A0",
+  autres: "#929292",
+};
+
+export function couleurTheme(t: string | null): string {
+  if (!t) return THEME_COLORS.autres;
+  return THEME_COLORS[t] ?? THEME_COLORS.autres;
+}
