@@ -67,8 +67,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, doleance, elu, ...resultat });
   } catch (err) {
+    // Message lisible quel que soit le type d'erreur (Error, objet Supabase...)
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object"
+          ? JSON.stringify(err)
+          : String(err);
     return NextResponse.json(
-      { ok: false, erreur: String(err) },
+      { ok: false, erreur: "Erreur serveur : " + message },
       { status: 500 }
     );
   }
