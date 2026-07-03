@@ -102,15 +102,19 @@ export default function EspaceEluPage() {
             </p>
 
             <div
-              className="fr-card fr-card--no-border"
-              style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
+              style={{
+                background: "#fff",
+                border: "1px solid #e5e5e5",
+                borderRadius: 12,
+                padding: "1.5rem",
+                boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
+              }}
             >
-              <div className="fr-card__body">
-                <h2 className="fr-card__title">Identifiez-vous</h2>
-                <p className="fr-card__desc fr-text--sm">
-                  Recherchez votre nom : votre territoire est détecté
-                  automatiquement.
-                </p>
+              <h2 style={{ marginTop: 0, fontSize: 20 }}>Identifiez-vous</h2>
+              <p className="fr-text--sm">
+                Recherchez votre nom : votre territoire est détecté
+                automatiquement.
+              </p>
 
                 <div style={{ position: "relative" }}>
                   <label className="fr-label" htmlFor="elu-nom">
@@ -205,7 +209,6 @@ export default function EspaceEluPage() {
                     </button>
                   </div>
                 )}
-              </div>
             </div>
           </div>
         </div>

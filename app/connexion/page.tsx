@@ -24,14 +24,19 @@ export default function ConnexionPage() {
         <div className="fr-grid-row fr-grid-row--center">
           <div className="fr-col-12 fr-col-md-8 fr-col-lg-6">
             <div
-              className="fr-card fr-card--no-border"
-              style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
+              style={{
+                background: "#fff",
+                border: "1px solid #e5e5e5",
+                borderRadius: 12,
+                padding: "1.5rem",
+                boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
+              }}
             >
-              <div className="fr-card__body">
-                <h1 className="fr-card__title fr-text--center">
+              <div>
+                <h1 className="fr-text--center" style={{ marginTop: 0, fontSize: 24 }}>
                   Connexion FranceConnect
                 </h1>
-                <p className="fr-card__desc fr-text--center fr-mb-3w">
+                <p className="fr-text--center fr-mb-3w">
                   Saisissez vos identifiants pour continuer.
                 </p>
 
