@@ -133,11 +133,16 @@ export async function runPipeline(
   return pipelineSecours(texte);
 }
 
-// Sélection de l'élu destinataire dans la table elus.
-// Région codée en dur sur l'Île-de-France ('11') pour la démo — à remplacer
-// par un vrai mapping code INSEE → région (geo.api.gouv.fr) après import RNE.
+// Sélection de l'élu destinataire dans la table elus (RNE importé :
+// ~34 600 maires, 577 députés, présidents de départements et de régions).
+// Région codée en dur sur l'Île-de-France ('11') — mapping dept → région
+// à brancher si la démo sort d'IDF.
 export async function choisirElu(niveau: Niveau, code_insee: string) {
   const db = supabaseAdmin();
+  const dept =
+    code_insee.startsWith("97") || code_insee.startsWith("98")
+      ? code_insee.slice(0, 3)
+      : code_insee.slice(0, 2);
   const chercher = async (niv: string, terr: string) =>
     (
       await db
@@ -148,17 +153,11 @@ export async function choisirElu(niveau: Niveau, code_insee: string) {
         .limit(1)
     ).data?.[0] ?? null;
 
-  let elu =
-    niveau === "etat"
-      ? await chercher("region", "11")
-      : await chercher(
-          niveau,
-          niveau === "commune"
-            ? code_insee
-            : niveau === "departement"
-              ? code_insee.slice(0, 2)
-              : "11"
-        );
+  const cible =
+    niveau === "commune" ? code_insee
+    : niveau === "departement" || niveau === "etat" ? dept
+    : "11";
+  let elu = await chercher(niveau, cible);
   if (!elu) elu = await chercher("region", "11");
   return elu;
 }
