@@ -1,94 +1,162 @@
-import { Badge } from "@codegouvfr/react-dsfr/Badge";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
+import { getFcSub } from "@/lib/citoyen";
+import { FriseStatut } from "@/components/FriseStatut";
+import { labelStatut, labelTheme } from "@/lib/statuts";
 
+type Reponse = { texte: string; created_at: string; auteur: string };
 type Doleance = {
-  id: number;
-  excerpt: string;
-  commune: string;
-  date: string;
-  status: "Déposée" | "Transmise" | "En traitement" | "Répondue";
-  response?: string;
+  id: string;
+  texte_anonymise: string;
+  theme: string | null;
+  urgence: string | null;
+  resume: string | null;
+  statut: string;
+  created_at: string;
+  elus: { nom: string; mandat: string } | null;
+  reponses: Reponse[];
 };
 
-const doleances: Doleance[] = [
-  {
-    id: 1,
-    excerpt: "Les lampadaires du quartier sont souvent en panne depuis plusieurs semaines.",
-    commune: "Lyon",
-    date: "12 juin 2026",
-    status: "Déposée",
-  },
-  {
-    id: 2,
-    excerpt: "Le trottoir devant l’école est dangereux après les intempéries.",
-    commune: "Villeurbanne",
-    date: "3 juin 2026",
-    status: "Transmise",
-  },
-  {
-    id: 3,
-    excerpt: "Le service de collecte des déchets se fait avec un retard important le matin.",
-    commune: "Lyon",
-    date: "28 mai 2026",
-    status: "En traitement",
-  },
-  {
-    id: 4,
-    excerpt: "Le portail du parc municipal reste souvent ouvert la nuit.",
-    commune: "Bron",
-    date: "19 mai 2026",
-    status: "Répondue",
-    response:
-      "Une visite de sécurité a été réalisée et un nouveau dispositif d’ouverture a été mis en place.",
-  },
-];
-
-const statusSeverity: Record<Doleance["status"], "info" | "success" | "warning" | "new"> = {
-  Déposée: "info",
-  Transmise: "new",
-  "En traitement": "warning",
-  Répondue: "success",
+const couleurUrgence: Record<string, string> = {
+  haute: "#e1000f",
+  moyenne: "#b34000",
+  faible: "#0063cb",
 };
+
+function dateFr(iso: string) {
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 
 export default function SuiviPage() {
+  const [doleances, setDoleances] = useState<Doleance[]>([]);
+  const [chargement, setChargement] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/mes-doleances?fc=${encodeURIComponent(getFcSub())}`)
+      .then((r) => r.json())
+      .then((d) => setDoleances(d.doleances ?? []))
+      .catch(() => setDoleances([]))
+      .finally(() => setChargement(false));
+  }, []);
+
   return (
     <>
       <StartDsfrOnHydration />
       <main className="fr-container fr-py-6w">
         <h1>Suivi de mes doléances</h1>
         <p className="fr-text--lead">
-          Retrouvez ici l’historique des demandes déjà déposées et leur état d’avancement.
+          Retrouvez ici toutes les demandes que vous avez déposées et leur état
+          d’avancement, étape par étape.
         </p>
 
-        <div className="fr-grid-row fr-grid-row--gutters">
-          {doleances.map(doleance => (
-            <div key={doleance.id} className="fr-col-12">
-              <div className="fr-card fr-card--no-border">
-                <div className="fr-card__body">
-                  <div className="fr-card__content">
-                    <div className="fr-flex fr-justify-content-space-between fr-align-items-center">
-                      <p className="fr-card__desc fr-mb-1w">{doleance.excerpt}</p>
-                      <Badge severity={statusSeverity[doleance.status]}>
-                        {doleance.status}
-                      </Badge>
-                    </div>
-                    <p className="fr-text--sm fr-mb-0">
-                      <strong>Commune :</strong> {doleance.commune}
-                    </p>
-                    <p className="fr-text--sm fr-mb-0">
-                      <strong>Date :</strong> {doleance.date}
-                    </p>
-                    {doleance.response ? (
-                      <div className="fr-alert fr-alert--info fr-mt-2w" role="status">
-                        <h2 className="fr-alert__title">Réponse de la collectivité</h2>
-                        <p>{doleance.response}</p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+        {chargement ? (
+          <p>Chargement…</p>
+        ) : doleances.length === 0 ? (
+          <div
+            className="fr-card fr-card--no-border"
+            style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)", textAlign: "center" }}
+          >
+            <div className="fr-card__body fr-py-6w">
+              <p className="fr-text--lead fr-mb-2w">
+                Vous n’avez pas encore déposé de doléance.
+              </p>
+              <Link className="fr-btn" href="/deposer">
+                Déposer ma première doléance
+              </Link>
             </div>
-          ))}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {doleances.map((d) => (
+              <article
+                key={d.id}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e5e5e5",
+                  borderLeft: `4px solid ${couleurUrgence[d.urgence ?? "faible"] ?? "#0063cb"}`,
+                  borderRadius: 8,
+                  padding: "1.25rem 1.5rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: "1rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        background: "#eeeeff",
+                        color: "#000091",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "2px 10px",
+                        borderRadius: 4,
+                        marginBottom: 6,
+                      }}
+                    >
+                      {labelTheme(d.theme)}
+                    </span>
+                    <p style={{ margin: 0, fontSize: 15 }}>
+                      {d.resume || d.texte_anonymise}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 13, color: "#666", whiteSpace: "nowrap" }}>
+                    n° {d.id.slice(0, 8)}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: 13, color: "#666", margin: "8px 0 4px" }}>
+                  Déposée le {dateFr(d.created_at)}
+                  {d.elus ? ` · transmise à ${d.elus.nom} (${d.elus.mandat})` : ""}
+                </div>
+
+                <FriseStatut statut={d.statut} />
+
+                {d.reponses.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "1rem",
+                      background: "#f0f8f4",
+                      borderLeft: "3px solid #18753c",
+                      borderRadius: "0 4px 4px 0",
+                      padding: "0.75rem 1rem",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: "0 0 4px",
+                        fontWeight: 700,
+                        color: "#18753c",
+                        fontSize: 14,
+                      }}
+                    >
+                      Réponse de {d.reponses[0].auteur} — statut : {labelStatut(d.statut)}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 14 }}>{d.reponses[0].texte}</p>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+
+        <div className="fr-mt-4w">
+          <Link className="fr-btn fr-btn--secondary" href="/deposer">
+            Déposer une nouvelle doléance
+          </Link>
         </div>
       </main>
     </>

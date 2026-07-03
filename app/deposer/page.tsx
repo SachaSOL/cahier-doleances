@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Button } from "@codegouvfr/react-dsfr/Button";
 import { Input } from "@codegouvfr/react-dsfr/Input";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
+import { getFcSub } from "@/lib/citoyen";
+import { labelTheme } from "@/lib/statuts";
 
 type ReponseDepot = {
   ok: boolean;
@@ -12,32 +14,92 @@ type ReponseDepot = {
   elu?: { nom: string; mandat: string };
   justification?: string;
   theme?: string;
+  urgence?: string;
   erreur?: string;
 };
 
 export default function DeposerPage() {
   const [message, setMessage] = useState("");
   const [commune, setCommune] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [resultat, setResultat] = useState<ReponseDepot | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setEnvoi(true);
+    setResultat(null);
     try {
       const reponse = await fetch("/api/doleance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texte: message, commune }),
+        body: JSON.stringify({
+          texte: message,
+          commune,
+          fc_sub_mock: getFcSub(),
+        }),
       });
       setResultat((await reponse.json()) as ReponseDepot);
     } catch {
       setResultat({ ok: false, erreur: "Impossible de joindre le serveur." });
     }
-    setSubmitted(true);
     setEnvoi(false);
   };
+
+  if (resultat?.ok) {
+    return (
+      <>
+        <StartDsfrOnHydration />
+        <main className="fr-container fr-py-6w">
+          <div className="fr-grid-row fr-grid-row--center">
+            <div className="fr-col-12 fr-col-lg-8">
+              <div
+                className="fr-alert fr-alert--success"
+                role="status"
+                style={{ marginBottom: "2rem" }}
+              >
+                <h2 className="fr-alert__title">Votre doléance a été transmise</h2>
+                <p>{resultat.justification}</p>
+              </div>
+
+              <div
+                className="fr-card fr-card--no-border"
+                style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
+              >
+                <div className="fr-card__body">
+                  <p className="fr-mb-1w">
+                    <strong>Destinataire :</strong> {resultat.elu?.nom} —{" "}
+                    {resultat.elu?.mandat}
+                  </p>
+                  <p className="fr-mb-1w">
+                    <strong>Thème identifié :</strong> {labelTheme(resultat.theme ?? null)}
+                    {resultat.urgence ? ` · urgence ${resultat.urgence}` : ""}
+                  </p>
+                  <p className="fr-mb-0">
+                    <strong>Numéro de suivi :</strong>{" "}
+                    {resultat.doleance?.id.slice(0, 8)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="fr-btns-group fr-btns-group--inline-md fr-mt-4w">
+                <Button linkProps={{ href: "/suivi" }}>Suivre mes doléances</Button>
+                <Button
+                  priority="secondary"
+                  onClick={() => {
+                    setMessage("");
+                    setCommune("");
+                    setResultat(null);
+                  }}
+                >
+                  Déposer une autre doléance
+                </Button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -52,8 +114,8 @@ export default function DeposerPage() {
             </div>
             <h1>Déposer une doléance</h1>
             <p className="fr-text--lead">
-              Racontez votre situation en quelques mots. Votre demande sera
-              transmise à l’équipe compétente après validation.
+              Racontez votre situation en quelques mots. Notre assistant
+              l’anonymise, identifie le thème et la transmet à l’élu compétent.
             </p>
 
             <form onSubmit={handleSubmit}>
@@ -63,21 +125,21 @@ export default function DeposerPage() {
                 textArea
                 nativeTextAreaProps={{
                   value: message,
-                  onChange: event => setMessage(event.target.value),
-                  rows: 10,
-                  placeholder: "Exemple : l’éclairage public est défaillant…",
+                  onChange: (event) => setMessage(event.target.value),
+                  rows: 8,
+                  placeholder: "Exemple : le passage piéton devant l’école est effacé…",
                   required: true,
                 }}
               />
 
               <div className="fr-mt-3w">
                 <Input
-                  label="Commune"
-                  hintText="Indiquez la commune concernée."
+                  label="Commune concernée"
+                  hintText="Saisissez le nom de la commune (n’importe où en France)."
                   nativeInputProps={{
                     value: commune,
-                    onChange: event => setCommune(event.target.value),
-                    placeholder: "Exemple : Lyon",
+                    onChange: (event) => setCommune(event.target.value),
+                    placeholder: "Exemple : Marseille",
                     required: true,
                   }}
                 />
@@ -90,25 +152,7 @@ export default function DeposerPage() {
               </div>
             </form>
 
-            {submitted && resultat?.ok ? (
-              <div className="fr-alert fr-alert--success fr-mt-4w" role="status">
-                <h2 className="fr-alert__title">Doléance transmise</h2>
-                <p>
-                  {resultat.justification} Elle a été transmise à :{" "}
-                  <strong>
-                    {resultat.elu?.nom} — {resultat.elu?.mandat}
-                  </strong>
-                  .
-                </p>
-                <p className="fr-text--sm">
-                  Numéro de suivi : {resultat.doleance?.id.slice(0, 8)}
-                </p>
-                <div className="fr-mt-3w">
-                  <Button linkProps={{ href: "/suivi" }}>Suivre mes demandes</Button>
-                </div>
-              </div>
-            ) : null}
-            {submitted && resultat && !resultat.ok ? (
+            {resultat && !resultat.ok ? (
               <div className="fr-alert fr-alert--error fr-mt-4w" role="alert">
                 <h2 className="fr-alert__title">Envoi impossible</h2>
                 <p>{resultat.erreur}</p>

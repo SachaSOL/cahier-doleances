@@ -1,227 +1,301 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Badge } from "@codegouvfr/react-dsfr/Badge";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
+import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
+import { getElu, type EluSession } from "@/lib/elu";
+import { labelStatut, labelTheme } from "@/lib/statuts";
+import type { Territoire } from "@/lib/territoire";
 
-type RequestStatus = "Déposée" | "Transmise" | "En traitement" | "Répondue";
-
-type RequestItem = {
-  id: number;
-  theme: string;
-  excerpt: string;
-  commune: string;
-  date: string;
-  status: RequestStatus;
+type Reponse = { texte: string; created_at: string; auteur: string };
+type Doleance = {
+  id: string;
+  texte_anonymise: string;
+  theme: string | null;
+  urgence: string | null;
+  resume: string | null;
+  statut: string;
+  code_insee: string;
+  created_at: string;
+  reponses: Reponse[];
 };
 
-const initialRequests: RequestItem[] = [
-  {
-    id: 1,
-    theme: "Voirie",
-    excerpt: "Nid-de-poule signalé devant l’école du quartier.",
-    commune: "Lyon",
-    date: "02/07/2026",
-    status: "Déposée",
-  },
-  {
-    id: 2,
-    theme: "Propreté",
-    excerpt: "Déchets abandonnés autour du marché hebdomadaire.",
-    commune: "Villeurbanne",
-    date: "30/06/2026",
-    status: "Transmise",
-  },
-  {
-    id: 3,
-    theme: "Sécurité",
-    excerpt: "Éclairage insuffisant sur le chemin piétonnier.",
-    commune: "Lyon",
-    date: "28/06/2026",
-    status: "En traitement",
-  },
-  {
-    id: 4,
-    theme: "Transports",
-    excerpt: "Retards fréquents sur la ligne de bus du centre-ville.",
-    commune: "Paris",
-    date: "25/06/2026",
-    status: "Répondue",
-  },
-  {
-    id: 5,
-    theme: "Logement",
-    excerpt: "Problème d’accessibilité dans un immeuble collectif.",
-    commune: "Paris",
-    date: "20/06/2026",
-    status: "En traitement",
-  },
-  {
-    id: 6,
-    theme: "Environnement",
-    excerpt: "Déchets plastiques retrouvés près de la rivière.",
-    commune: "Villeurbanne",
-    date: "18/06/2026",
-    status: "Transmise",
-  },
-];
-
-const territoryOptions = {
-  Commune: ["Lyon", "Villeurbanne", "Paris"],
-  Département: ["Rhône", "Paris"],
-  Région: ["Île-de-France", "Auvergne-Rhône-Alpes"],
+const couleurStatut: Record<string, string> = {
+  deposee: "#0063cb",
+  transmise: "#6a6af4",
+  en_traitement: "#b34000",
+  repondue: "#18753c",
 };
-
-const statusSeverity: Record<RequestStatus, "info" | "new" | "warning" | "success"> = {
-  Déposée: "info",
-  Transmise: "new",
-  "En traitement": "warning",
-  Répondue: "success",
-};
-
-const themeChartData = [
-  { name: "Voirie", count: 1 },
-  { name: "Propreté", count: 1 },
-  { name: "Sécurité", count: 1 },
-  { name: "Transports", count: 1 },
-  { name: "Logement", count: 1 },
-  { name: "Environnement", count: 1 },
-];
 
 export default function MesRequetesPage() {
-  const [territoryType, setTerritoryType] = useState<keyof typeof territoryOptions>("Commune");
-  const [territory, setTerritory] = useState<string>(territoryOptions.Commune[0]);
-  const [requests, setRequests] = useState<RequestItem[]>(initialRequests);
+  const router = useRouter();
+  const [elu, setEluState] = useState<EluSession | null>(null);
+  const [territoire, setTerritoire] = useState<Territoire | null>(null);
+  const [doleances, setDoleances] = useState<Doleance[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [reponseEnCours, setReponseEnCours] = useState<Record<string, string>>({});
+  const [envoiId, setEnvoiId] = useState<string | null>(null);
 
-  const handleTerritoryTypeChange = (value: string) => {
-    const nextType = value as keyof typeof territoryOptions;
-    setTerritoryType(nextType);
-    setTerritory(territoryOptions[nextType][0]);
+  useEffect(() => {
+    const e = getElu();
+    if (!e) {
+      router.push("/espace-elu");
+      return;
+    }
+    setEluState(e);
+    setTerritoire({ niveau: e.niveauTerr, code: e.code, nom: e.territoireNom });
+  }, [router]);
+
+  const charger = useCallback(async (t: Territoire) => {
+    setChargement(true);
+    try {
+      const r = await fetch(
+        `/api/doleances?niveau=${t.niveau}&code=${encodeURIComponent(t.code)}`
+      );
+      const d = await r.json();
+      setDoleances(d.doleances ?? []);
+    } catch {
+      setDoleances([]);
+    }
+    setChargement(false);
+  }, []);
+
+  useEffect(() => {
+    if (territoire) charger(territoire);
+  }, [territoire, charger]);
+
+  const stats = useMemo(() => {
+    const total = doleances.length;
+    const enCours = doleances.filter((d) => d.statut === "en_traitement").length;
+    const repondues = doleances.filter((d) => d.statut === "repondue").length;
+    return { total, enCours, repondues };
+  }, [doleances]);
+
+  const envoyerReponse = async (id: string) => {
+    const texte = (reponseEnCours[id] ?? "").trim();
+    if (!texte || !elu) return;
+    setEnvoiId(id);
+    try {
+      const r = await fetch("/api/reponse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doleance_id: id, texte, auteur: elu.label }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setDoleances((cur) =>
+          cur.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  statut: "repondue",
+                  reponses: [{ texte, created_at: new Date().toISOString(), auteur: elu.label }],
+                }
+              : x
+          )
+        );
+        setReponseEnCours((cur) => ({ ...cur, [id]: "" }));
+      }
+    } finally {
+      setEnvoiId(null);
+    }
   };
 
-  const handleStatusChange = (id: number, status: RequestStatus) => {
-    setRequests(current => current.map(request => (request.id === id ? { ...request, status } : request)));
-  };
-
-  const themeCounts = useMemo(() => {
-    const counts = requests.reduce<Record<string, number>>((acc, request) => {
-      acc[request.theme] = (acc[request.theme] ?? 0) + 1;
-      return acc;
-    }, {});
-
-    return Object.entries(counts).map(([name, count]) => ({ name, count }));
-  }, [requests]);
+  if (!elu) return null;
 
   return (
     <>
       <StartDsfrOnHydration />
       <main className="fr-container fr-py-6w">
-        <h1>Boîte de réception des doléances</h1>
-        <p className="fr-text--lead">
-          Gérez les demandes qui concernent votre territoire et mettez à jour leur statut.
-        </p>
-
-        <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w">
-          <div className="fr-col-12 fr-col-md-6">
-            <label className="fr-label" htmlFor="territory-type-select">
-              Type de territoire
-            </label>
-            <select
-              className="fr-select"
-              id="territory-type-select"
-              value={territoryType}
-              onChange={event => handleTerritoryTypeChange(event.target.value)}
+        {/* En-tête élu, avec photo si disponible */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1.25rem",
+            background: "#f5f5fe",
+            border: "1px solid #e3e3fd",
+            borderRadius: 8,
+            padding: "1rem 1.5rem",
+            marginBottom: "1.5rem",
+            flexWrap: "wrap",
+          }}
+        >
+          {elu.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={elu.photo}
+              alt={elu.label}
+              style={{
+                width: 72,
+                height: 90,
+                objectFit: "cover",
+                borderRadius: 6,
+                border: "2px solid #000091",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: "#000091",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 20,
+              }}
             >
-              <option value="Commune">Commune</option>
-              <option value="Département">Département</option>
-              <option value="Région">Région</option>
-            </select>
-          </div>
-          <div className="fr-col-12 fr-col-md-6">
-            <label className="fr-label" htmlFor="territory-select">
-              Territoire
-            </label>
-            <select
-              className="fr-select"
-              id="territory-select"
-              value={territory}
-              onChange={event => setTerritory(event.target.value)}
-            >
-              {territoryOptions[territoryType].map(option => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="fr-card fr-card--no-border fr-mb-4w">
-          <div className="fr-card__body">
-            <h2 className="fr-card__title">Répartition par thème</h2>
-            <div style={{ width: "100%", height: 260 }}>
-              <ResponsiveContainer>
-                <BarChart data={themeCounts.length > 0 ? themeCounts : themeChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#465F9D" />
-                </BarChart>
-              </ResponsiveContainer>
+              {elu.label
+                .split(" ")
+                .map((m) => m[0])
+                .slice(0, 2)
+                .join("")}
             </div>
+          )}
+          <div>
+            <h1 style={{ margin: 0, fontSize: 22 }}>{elu.label}</h1>
+            <p style={{ margin: "2px 0 0", color: "#3a3a3a" }}>{elu.mandat}</p>
+            <p style={{ margin: "2px 0 0", color: "#666", fontSize: 14 }}>
+              Territoire : {elu.territoireNom}
+            </p>
           </div>
         </div>
 
-        <div className="fr-card fr-card--no-border">
-          <div className="fr-card__body">
-            <h2 className="fr-card__title">Doléances à traiter</h2>
-            <div className="fr-grid-row fr-grid-row--gutters">
-              {requests.map(request => (
-                <div key={request.id} className="fr-col-12">
-                  <div className="fr-card fr-card--no-border fr-card--shadow">
-                    <div className="fr-card__body">
-                      <div className="fr-grid-row fr-grid-row--gutters fr-grid-row--middle">
-                        <div className="fr-col-12 fr-col-lg-3">
-                          <Badge severity="info">{request.theme}</Badge>
-                        </div>
-                        <div className="fr-col-12 fr-col-lg-4">
-                          <p className="fr-mb-0">{request.excerpt}</p>
-                        </div>
-                        <div className="fr-col-12 fr-col-lg-2">
-                          <p className="fr-mb-0">{request.commune}</p>
-                        </div>
-                        <div className="fr-col-12 fr-col-lg-1">
-                          <p className="fr-mb-0">{request.date}</p>
-                        </div>
-                        <div className="fr-col-12 fr-col-lg-2">
-                          <Badge severity={statusSeverity[request.status]}>{request.status}</Badge>
-                        </div>
-                        <div className="fr-col-12 fr-col-lg-0">
-                          <label className="fr-label fr-sr-only" htmlFor={`status-${request.id}`}>
-                            Statut
-                          </label>
-                          <select
-                            className="fr-select"
-                            id={`status-${request.id}`}
-                            value={request.status}
-                            onChange={event => handleStatusChange(request.id, event.target.value as RequestStatus)}
-                          >
-                            <option value="Déposée">Déposée</option>
-                            <option value="Transmise">Transmise</option>
-                            <option value="En traitement">En traitement</option>
-                            <option value="Répondue">Répondue</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+        {/* KPI */}
+        <div className="fr-grid-row fr-grid-row--gutters fr-mb-3w">
+          {[
+            { label: "Doléances reçues", val: stats.total },
+            { label: "En traitement", val: stats.enCours },
+            { label: "Répondues", val: stats.repondues },
+          ].map((k) => (
+            <div key={k.label} className="fr-col-6 fr-col-md-4">
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 8,
+                  padding: "1rem 1.25rem",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 13, color: "#666" }}>{k.label}</p>
+                <p style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#000091" }}>
+                  {k.val}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <details className="fr-mb-3w">
+          <summary style={{ cursor: "pointer", color: "#000091" }}>
+            Changer de territoire
+          </summary>
+          <div className="fr-mt-2w">
+            <SelecteurTerritoire
+              value={territoire}
+              onChange={(t) => t && setTerritoire(t)}
+              autoriserNational
+            />
+          </div>
+        </details>
+
+        <h2 className="fr-h4">Doléances à traiter</h2>
+        {chargement ? (
+          <p>Chargement…</p>
+        ) : doleances.length === 0 ? (
+          <p>Aucune doléance sur ce territoire.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {doleances.map((d) => (
+              <article
+                key={d.id}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 8,
+                  padding: "1rem 1.25rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                    flexWrap: "wrap",
+                    marginBottom: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      background: "#eeeeff",
+                      color: "#000091",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "2px 10px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    {labelTheme(d.theme)}
+                    {d.urgence === "haute" ? " · urgent" : ""}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: couleurStatut[d.statut] ?? "#666",
+                    }}
+                  >
+                    {labelStatut(d.statut)}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <p style={{ margin: "0 0 4px", fontSize: 15 }}>{d.texte_anonymise}</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#666" }}>
+                  Commune {d.code_insee}
+                </p>
+
+                {d.reponses.length > 0 ? (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      background: "#f0f8f4",
+                      borderLeft: "3px solid #18753c",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: 14,
+                    }}
+                  >
+                    <strong style={{ color: "#18753c" }}>Réponse envoyée :</strong>{" "}
+                    {d.reponses[0].texte}
+                  </div>
+                ) : (
+                  <div className="fr-mt-2w">
+                    <textarea
+                      className="fr-input"
+                      rows={2}
+                      placeholder="Rédiger une réponse au citoyen…"
+                      value={reponseEnCours[d.id] ?? ""}
+                      onChange={(e) =>
+                        setReponseEnCours((cur) => ({ ...cur, [d.id]: e.target.value }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="fr-btn fr-btn--sm fr-mt-1w"
+                      disabled={envoiId === d.id}
+                      onClick={() => envoyerReponse(d.id)}
+                    >
+                      {envoiId === d.id ? "Envoi…" : "Répondre et clôturer"}
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
           </div>
-        </div>
+        )}
       </main>
     </>
   );
