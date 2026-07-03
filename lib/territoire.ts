@@ -11,6 +11,30 @@ export type Territoire = {
 };
 
 const cacheDepts = new Map<string, string[]>();
+const cacheCommunes = new Map<string, Map<string, string>>();
+
+// Code INSEE → nom de commune pour un département (mémoïsé).
+export async function communesDuDepartement(dept: string): Promise<Map<string, string>> {
+  if (cacheCommunes.has(dept)) return cacheCommunes.get(dept)!;
+  try {
+    const r = await fetch(
+      `https://geo.api.gouv.fr/departements/${dept}/communes?fields=code,nom`
+    );
+    const j = (await r.json()) as { code: string; nom: string }[];
+    const m = new Map(j.map((c) => [c.code, c.nom]));
+    cacheCommunes.set(dept, m);
+    return m;
+  } catch {
+    return new Map();
+  }
+}
+
+// Déduit le code département d'un code INSEE (gère la Corse et l'outre-mer).
+export function deptDeInsee(insee: string): string {
+  if (insee.startsWith("2A") || insee.startsWith("2B")) return insee.slice(0, 2);
+  if (insee.startsWith("97") || insee.startsWith("98")) return insee.slice(0, 3);
+  return insee.slice(0, 2);
+}
 
 export async function departementsDeRegion(codeRegion: string): Promise<string[]> {
   if (cacheDepts.has(codeRegion)) return cacheDepts.get(codeRegion)!;

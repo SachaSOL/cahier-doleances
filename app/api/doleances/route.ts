@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { appliquerFiltre, type NiveauTerr } from "@/lib/territoire";
+import {
+  appliquerFiltre,
+  communesDuDepartement,
+  deptDeInsee,
+  type NiveauTerr,
+} from "@/lib/territoire";
 
 // GET /api/doleances?niveau=region&code=11[&statut=deposee]
 // Flux ANONYMISÉ : ne renvoie jamais la table identites (ni nom, ni adresse).
@@ -27,5 +32,19 @@ export async function GET(req: Request) {
   const { data, error } = await query;
   if (error)
     return NextResponse.json({ doleances: [], erreur: error.message }, { status: 500 });
-  return NextResponse.json({ doleances: data ?? [] });
+
+  // Enrichit chaque doléance du nom de sa commune (1 appel geo par département
+  // présent, mémoïsé) → sert à indiquer « reçue par … à … ».
+  const rows = data ?? [];
+  const depts = [...new Set(rows.map((d) => deptDeInsee(d.code_insee)))];
+  const cartes = new Map<string, Map<string, string>>();
+  await Promise.all(
+    depts.map(async (dep) => cartes.set(dep, await communesDuDepartement(dep)))
+  );
+  const enrichies = rows.map((d) => ({
+    ...d,
+    commune_nom: cartes.get(deptDeInsee(d.code_insee))?.get(d.code_insee) ?? null,
+  }));
+
+  return NextResponse.json({ doleances: enrichies });
 }

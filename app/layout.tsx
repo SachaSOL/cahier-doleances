@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { getHtmlAttributes, DsfrHead } from "../dsfr-bootstrap/server-only-index";
 import { DsfrProvider } from "../dsfr-bootstrap";
-import { NavPrincipale } from "../components/NavPrincipale";
+import { EnteteSite } from "../components/EnteteSite";
+import { PiedSite } from "../components/PiedSite";
 
 export const metadata: Metadata = {
   title: "Cahier de Doléances 2.0",
@@ -22,8 +23,9 @@ export default function RootLayout({
       </head>
       <body>
         <DsfrProvider lang={lang}>
-          <NavPrincipale />
+          <EnteteSite />
           {children}
+          <PiedSite />
         </DsfrProvider>
       </body>
     </html>

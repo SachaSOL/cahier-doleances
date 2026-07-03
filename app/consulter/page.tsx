@@ -16,8 +16,20 @@ type Doleance = {
   statut: string;
   created_at: string;
   code_insee: string;
+  commune_nom: string | null;
+  elus: { nom: string; mandat: string; niveau: string } | null;
   reponses: Reponse[];
 };
+
+// Phrase indiquant qui a reçu / traité la doléance, selon le statut.
+function destinataire(d: Doleance): string | null {
+  if (!d.elus) return null;
+  const lieu = d.commune_nom ? ` à ${d.commune_nom}` : "";
+  const qui = `${d.elus.nom}, ${d.elus.mandat}${lieu}`;
+  if (d.statut === "repondue") return `Traitée par ${qui}`;
+  if (d.statut === "deposee") return `Sera transmise à ${qui}`;
+  return `Transmise à ${qui}`;
+}
 
 export default function ConsulterPage() {
   const [territoire, setTerritoire] = useState<Territoire | null>(null);
@@ -147,6 +159,19 @@ export default function ConsulterPage() {
                             ? d.texte_anonymise.slice(0, 140) + "…"
                             : d.texte_anonymise}
                       </p>
+
+                      {destinataire(d) && (
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            fontSize: 13,
+                            color: "#3a3a3a",
+                          }}
+                        >
+                          <span aria-hidden="true">📩 </span>
+                          {destinataire(d)}
+                        </p>
+                      )}
 
                       {repondue && (
                         <p

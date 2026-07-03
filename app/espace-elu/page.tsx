@@ -11,13 +11,14 @@ type EluResultat = {
   mandat: string;
   niveau: string;
   territoire_code: string;
+  special?: boolean;
 };
 
 const NIVEAU_LABEL: Record<string, string> = {
   commune: "Commune",
   departement: "Département",
   region: "Région",
-  etat: "National (circonscription)",
+  etat: "Circonscription",
   senateur: "Sénat",
   epci: "Intercommunalité",
   conseil_regional: "Conseil régional",
@@ -26,32 +27,26 @@ const NIVEAU_LABEL: Record<string, string> = {
   arrondissement: "Arrondissement",
 };
 
+// Profil spécial « Présidente de l'Assemblée nationale » : accessible depuis la
+// même barre de recherche en tapant Braun-Pivet, présidente, assemblée ou admin.
+const PRESIDENTE: EluResultat = {
+  id: "presidente-an",
+  nom: "Yaël Braun-Pivet",
+  mandat: "Présidente de l’Assemblée nationale",
+  niveau: "national",
+  territoire_code: "",
+  special: true,
+};
+
+function correspondPresidente(q: string) {
+  const s = q.toLowerCase();
+  return ["braun", "pivet", "présid", "presid", "assembl", "admin"].some((m) =>
+    s.includes(m)
+  );
+}
+
 export default function EspaceEluPage() {
   const router = useRouter();
-
-  // --- Connexion administrateur (admin / admin) → Présidente de l'AN ---
-  const [email, setEmail] = useState("");
-  const [mdp, setMdp] = useState("");
-  const [erreurAdmin, setErreurAdmin] = useState("");
-
-  const connexionAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim() === "admin" && mdp.trim() === "admin") {
-      setElu({
-        label: "Yaël Braun-Pivet",
-        mandat: "Présidente de l’Assemblée nationale",
-        niveauTerr: "national",
-        code: "",
-        territoireNom: "France entière",
-        photo: "/braun-pivet.jpg",
-      });
-      router.push("/mes-requetes");
-    } else {
-      setErreurAdmin("Identifiants incorrects. (Astuce démo : admin / admin)");
-    }
-  };
-
-  // --- Recherche par nom d'élu → territoire automatique ---
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<EluResultat[]>([]);
   const [choisi, setChoisi] = useState<EluResultat | null>(null);
@@ -66,19 +61,32 @@ export default function EspaceEluPage() {
     timer.current = setTimeout(async () => {
       const r = await fetch(`/api/elus?q=${encodeURIComponent(q)}`);
       const d = await r.json();
-      setSuggestions(d.elus ?? []);
-    }, 220);
+      const liste: EluResultat[] = d.elus ?? [];
+      // On épingle la Présidente en tête si la recherche la vise.
+      setSuggestions(correspondPresidente(q) ? [PRESIDENTE, ...liste] : liste);
+    }, 200);
   }, [q, choisi]);
 
-  const entrerCommeElu = () => {
+  const entrer = () => {
     if (!choisi) return;
-    setElu({
-      label: choisi.nom,
-      mandat: choisi.mandat,
-      niveauTerr: niveauTerritorial(choisi.niveau),
-      code: choisi.territoire_code,
-      territoireNom: `${NIVEAU_LABEL[choisi.niveau] ?? choisi.niveau} ${choisi.territoire_code}`,
-    });
+    if (choisi.special) {
+      setElu({
+        label: PRESIDENTE.nom,
+        mandat: PRESIDENTE.mandat,
+        niveauTerr: "national",
+        code: "",
+        territoireNom: "France entière",
+        photo: "/braun-pivet.jpg",
+      });
+    } else {
+      setElu({
+        label: choisi.nom,
+        mandat: choisi.mandat,
+        niveauTerr: niveauTerritorial(choisi.niveau),
+        code: choisi.territoire_code,
+        territoireNom: `${NIVEAU_LABEL[choisi.niveau] ?? choisi.niveau} ${choisi.territoire_code}`,
+      });
+    }
     router.push("/mes-requetes");
   };
 
@@ -86,78 +94,31 @@ export default function EspaceEluPage() {
     <>
       <StartDsfrOnHydration />
       <main className="fr-container fr-py-6w">
-        <h1>Espace élu</h1>
-        <p className="fr-text--lead">
-          Connectez-vous pour accéder aux doléances de votre territoire.
-        </p>
+        <div className="fr-grid-row fr-grid-row--center">
+          <div className="fr-col-12 fr-col-md-8 fr-col-lg-7">
+            <h1>Espace élu</h1>
+            <p className="fr-text--lead">
+              Connectez-vous pour accéder aux doléances de votre territoire.
+            </p>
 
-        <div className="fr-grid-row fr-grid-row--gutters">
-          {/* Connexion administrateur */}
-          <div className="fr-col-12 fr-col-md-6">
             <div
               className="fr-card fr-card--no-border"
-              style={{ height: "100%", boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
+              style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
             >
               <div className="fr-card__body">
-                <h2 className="fr-card__title">Connexion sécurisée</h2>
-                <p className="fr-card__desc fr-text--sm">
-                  Accès réservé aux élus et à leurs services.
-                </p>
-                <form onSubmit={connexionAdmin}>
-                  <div className="fr-input-group">
-                    <label className="fr-label" htmlFor="elu-email">
-                      Identifiant
-                    </label>
-                    <input
-                      className="fr-input"
-                      id="elu-email"
-                      type="text"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin"
-                    />
-                  </div>
-                  <div className="fr-input-group fr-mt-2w">
-                    <label className="fr-label" htmlFor="elu-mdp">
-                      Mot de passe
-                    </label>
-                    <input
-                      className="fr-input"
-                      id="elu-mdp"
-                      type="password"
-                      value={mdp}
-                      onChange={(e) => setMdp(e.target.value)}
-                      placeholder="admin"
-                    />
-                  </div>
-                  {erreurAdmin && (
-                    <p className="fr-error-text">{erreurAdmin}</p>
-                  )}
-                  <div className="fr-mt-3w">
-                    <button type="submit" className="fr-btn">
-                      Se connecter
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-
-          {/* Recherche par nom */}
-          <div className="fr-col-12 fr-col-md-6">
-            <div
-              className="fr-card fr-card--no-border"
-              style={{ height: "100%", boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
-            >
-              <div className="fr-card__body">
-                <h2 className="fr-card__title">Je suis un élu</h2>
+                <h2 className="fr-card__title">Identifiez-vous</h2>
                 <p className="fr-card__desc fr-text--sm">
                   Recherchez votre nom : votre territoire est détecté
                   automatiquement.
                 </p>
+
                 <div style={{ position: "relative" }}>
                   <label className="fr-label" htmlFor="elu-nom">
-                    Votre nom
+                    Nom de l’élu
+                    <span className="fr-hint-text">
+                      Ex. : Pécresse, Doucet… (démo : « admin » pour la Présidente
+                      de l’Assemblée)
+                    </span>
                   </label>
                   <input
                     className="fr-input"
@@ -169,7 +130,7 @@ export default function EspaceEluPage() {
                       setQ(e.target.value);
                       setChoisi(null);
                     }}
-                    placeholder="Ex. : Pécresse, Doucet…"
+                    placeholder="Commencez à taper votre nom…"
                   />
                   {suggestions.length > 0 && (
                     <ul
@@ -183,7 +144,7 @@ export default function EspaceEluPage() {
                         listStyle: "none",
                         background: "#fff",
                         border: "1px solid #ddd",
-                        maxHeight: 240,
+                        maxHeight: 280,
                         overflowY: "auto",
                         boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                       }}
@@ -201,15 +162,17 @@ export default function EspaceEluPage() {
                               display: "block",
                               width: "100%",
                               textAlign: "left",
-                              padding: "8px 12px",
-                              background: "none",
+                              padding: "10px 12px",
+                              background: el.special ? "#f5f5fe" : "none",
                               border: "none",
+                              borderLeft: el.special ? "3px solid #000091" : "none",
                               cursor: "pointer",
                               fontSize: 14,
                             }}
                           >
-                            {el.nom}{" "}
-                            <span style={{ color: "#666" }}>— {el.mandat}</span>
+                            <strong>{el.nom}</strong>
+                            <br />
+                            <span style={{ color: "#666" }}>{el.mandat}</span>
                           </button>
                         </li>
                       ))}
@@ -232,16 +195,12 @@ export default function EspaceEluPage() {
                       {choisi.mandat}
                       <br />
                       <span style={{ color: "#666" }}>
-                        Territoire détecté :{" "}
-                        {NIVEAU_LABEL[choisi.niveau] ?? choisi.niveau} ·{" "}
-                        {choisi.territoire_code}
+                        {choisi.special
+                          ? "Vue nationale (France entière)"
+                          : `Territoire détecté : ${NIVEAU_LABEL[choisi.niveau] ?? choisi.niveau} · ${choisi.territoire_code}`}
                       </span>
                     </p>
-                    <button
-                      type="button"
-                      className="fr-btn fr-mt-2w"
-                      onClick={entrerCommeElu}
-                    >
+                    <button type="button" className="fr-btn fr-mt-2w" onClick={entrer}>
                       Accéder à mes doléances
                     </button>
                   </div>
