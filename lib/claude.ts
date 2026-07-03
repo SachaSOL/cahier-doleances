@@ -17,7 +17,12 @@ export async function askClaudeJSON<T>(
     system,
     messages: [{ role: "user", content: userText }],
   });
-  const raw = msg.content[0].type === "text" ? msg.content[0].text : "";
+  // Les modèles Claude 5 peuvent renvoyer un bloc "thinking" avant le texte :
+  // on ne lit que les blocs texte.
+  const raw = msg.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
   const cleaned = raw.replace(/```json|```/g, "").trim();
   return JSON.parse(cleaned) as T;
 }
