@@ -62,23 +62,26 @@ export default function DeposerPage() {
               </div>
 
               <div
-                className="fr-card fr-card--no-border"
-                style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.08)" }}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 12,
+                  padding: "1.25rem 1.5rem",
+                  boxShadow: "0 1px 8px rgba(0,0,0,0.08)",
+                }}
               >
-                <div className="fr-card__body">
-                  <p className="fr-mb-1w">
-                    <strong>Destinataire :</strong> {resultat.elu?.nom} —{" "}
-                    {resultat.elu?.mandat}
-                  </p>
-                  <p className="fr-mb-1w">
-                    <strong>Thème identifié :</strong> {labelTheme(resultat.theme ?? null)}
-                    {resultat.urgence ? ` · urgence ${resultat.urgence}` : ""}
-                  </p>
-                  <p className="fr-mb-0">
-                    <strong>Numéro de suivi :</strong>{" "}
-                    {resultat.doleance?.id.slice(0, 8)}
-                  </p>
-                </div>
+                <p className="fr-mb-1w">
+                  <strong>Destinataire :</strong> {resultat.elu?.nom} —{" "}
+                  {resultat.elu?.mandat}
+                </p>
+                <p className="fr-mb-1w">
+                  <strong>Thème identifié :</strong> {labelTheme(resultat.theme ?? null)}
+                  {resultat.urgence ? ` · urgence ${resultat.urgence}` : ""}
+                </p>
+                <p className="fr-mb-0">
+                  <strong>Numéro de suivi :</strong>{" "}
+                  {resultat.doleance?.id.slice(0, 8)}
+                </p>
               </div>
 
               <div className="fr-btns-group fr-btns-group--inline-md fr-mt-4w">

@@ -23,6 +23,28 @@ type Doleance = {
   reponses: Reponse[];
 };
 
+// Affiche le nombre de doléances au milieu de chaque part du camembert.
+type LabelProps = {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  value: number;
+};
+function renderCompteur({ cx, cy, midAngle, innerRadius, outerRadius, value }: LabelProps) {
+  if (!value) return null;
+  const RADIAN = Math.PI / 180;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
+      {value}
+    </text>
+  );
+}
+
 export default function MesRequetesPage() {
   const router = useRouter();
   const [elu, setEluState] = useState<EluSession | null>(null);
@@ -118,6 +140,21 @@ export default function MesRequetesPage() {
           : x
       )
     );
+  };
+
+  // Passe une doléance « en cours de traitement » (étape intermédiaire visible
+  // dans le suivi du citoyen), sans la clôturer.
+  const marquerTraitement = async (id: string) => {
+    const r = await fetch("/api/statut", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doleance_id: id, statut: "en_traitement" }),
+    });
+    if ((await r.json()).ok) {
+      setDoleances((cur) =>
+        cur.map((x) => (x.id === id ? { ...x, statut: "en_traitement" } : x))
+      );
+    }
   };
 
   const envoyerReponse = async (id: string) => {
@@ -260,6 +297,7 @@ export default function MesRequetesPage() {
         ) : (
           <div className="fr-grid-row fr-grid-row--gutters fr-grid-row--middle">
             <div className="fr-col-12 fr-col-md-6" style={{ display: "flex", justifyContent: "center" }}>
+              <div style={{ position: "relative", width: 280, height: 280 }}>
               <PieChart width={280} height={280}>
                 <Pie
                   data={chartData}
@@ -267,10 +305,12 @@ export default function MesRequetesPage() {
                   nameKey="label"
                   cx="50%"
                   cy="50%"
-                  innerRadius={65}
+                  innerRadius={70}
                   outerRadius={115}
                   paddingAngle={2}
                   isAnimationActive={false}
+                  label={renderCompteur as never}
+                  labelLine={false}
                   onClick={(d: unknown) => {
                     const e = d as { key?: string; payload?: { key?: string } };
                     const key = e?.key ?? e?.payload?.key;
@@ -284,6 +324,23 @@ export default function MesRequetesPage() {
                 </Pie>
                 <Tooltip formatter={(v) => `${v} doléances`} />
               </PieChart>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <span style={{ fontSize: 26, fontWeight: 700, color: "#000091" }}>
+                  {stats.total}
+                </span>
+                <span style={{ fontSize: 12, color: "#666" }}>doléances</span>
+              </div>
+              </div>
             </div>
             <div className="fr-col-12 fr-col-md-6">
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -434,7 +491,7 @@ export default function MesRequetesPage() {
                           {estSelectionne ? "✓" : ""}
                         </span>
                       )}
-                      {repondue && <StatutBadge statut={d.statut} />}
+                      {!selectionnable && <StatutBadge statut={d.statut} />}
                     </div>
                     <p style={{ margin: 0, fontSize: 14 }}>{d.texte_anonymise}</p>
 
@@ -454,6 +511,16 @@ export default function MesRequetesPage() {
                     ) : (
                       !selection && (
                         <div className="fr-mt-1w">
+                          {d.statut !== "en_traitement" && (
+                            <button
+                              type="button"
+                              className="fr-btn fr-btn--sm fr-btn--secondary"
+                              style={{ marginBottom: 8 }}
+                              onClick={() => marquerTraitement(d.id)}
+                            >
+                              Marquer « en cours de traitement »
+                            </button>
+                          )}
                           <textarea
                             className="fr-input"
                             rows={2}

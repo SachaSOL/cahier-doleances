@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
+import { CarteFrance } from "@/components/CarteFrance";
 import { BarreFiltres } from "@/components/BarreFiltres";
 import { StatutBadge } from "@/components/StatutBadge";
 import { labelTheme } from "@/lib/statuts";
@@ -39,6 +40,7 @@ export default function ConsulterPage() {
   const [fstatut, setFstatut] = useState("");
   const [ouvertes, setOuvertes] = useState<Record<string, boolean>>({});
   const [survol, setSurvol] = useState<string | null>(null);
+  const [mode, setMode] = useState<"carte" | "recherche">("carte");
 
   const rechercher = async (t: Territoire | null) => {
     setTerritoire(t);
@@ -81,7 +83,33 @@ export default function ConsulterPage() {
           </p>
         </div>
 
-        <SelecteurTerritoire value={territoire} onChange={rechercher} />
+        {/* Choix du mode : carte interactive ou recherche */}
+        <div className="fr-btns-group fr-btns-group--inline-md fr-mb-2w">
+          <button
+            type="button"
+            className={mode === "carte" ? "fr-btn fr-btn--sm" : "fr-btn fr-btn--sm fr-btn--secondary"}
+            onClick={() => setMode("carte")}
+          >
+            Carte de France
+          </button>
+          <button
+            type="button"
+            className={mode === "recherche" ? "fr-btn fr-btn--sm" : "fr-btn fr-btn--sm fr-btn--secondary"}
+            onClick={() => setMode("recherche")}
+          >
+            Recherche par nom
+          </button>
+        </div>
+
+        {mode === "carte" ? (
+          <CarteFrance
+            onCommune={(insee, nom) =>
+              rechercher({ niveau: "commune", code: insee, nom })
+            }
+          />
+        ) : (
+          <SelecteurTerritoire value={territoire} onChange={rechercher} />
+        )}
 
         {doleances !== null && doleances.length > 0 && (
           <div className="fr-mt-3w">
