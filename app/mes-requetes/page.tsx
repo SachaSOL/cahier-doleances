@@ -110,6 +110,20 @@ export default function MesRequetesPage() {
     if (territoire) charger(territoire);
   }, [territoire, charger]);
 
+  // Prévient le QR code (dans le layout) qu'un panneau s'ouvre à droite,
+  // pour qu'il bascule à gauche et ne soit pas masqué.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("cd-drawer", { detail: { open: themeActif !== null } })
+    );
+  }, [themeActif]);
+
+  useEffect(() => {
+    return () => {
+      window.dispatchEvent(new CustomEvent("cd-drawer", { detail: { open: false } }));
+    };
+  }, []);
+
   const stats = useMemo(() => {
     const total = doleances.length;
     const enCours = doleances.filter((d) => d.statut !== "repondue").length;
