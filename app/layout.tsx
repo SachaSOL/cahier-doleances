@@ -3,6 +3,7 @@ import { getHtmlAttributes, DsfrHead } from "../dsfr-bootstrap/server-only-index
 import { DsfrProvider } from "../dsfr-bootstrap";
 import { EnteteSite } from "../components/EnteteSite";
 import { PiedSite } from "../components/PiedSite";
+import { QrPresentation } from "../components/QrPresentation";
 
 export const metadata: Metadata = {
   title: "Cahier de Doléances 2.0",
@@ -23,6 +24,7 @@ export default function RootLayout({
       </head>
       <body>
         <DsfrProvider lang={lang}>
+          <QrPresentation />
           <EnteteSite />
           {children}
           <PiedSite />
