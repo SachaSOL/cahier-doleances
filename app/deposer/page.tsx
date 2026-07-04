@@ -15,6 +15,7 @@ type ReponseDepot = {
   justification?: string;
   theme?: string;
   urgence?: string;
+  similaires?: number;
   erreur?: string;
 };
 
@@ -64,6 +65,36 @@ export default function DeposerPage() {
                 <h2 className="fr-alert__title">Votre doléance a été transmise</h2>
                 <p>{resultat.justification}</p>
               </div>
+
+              {resultat.similaires !== undefined && resultat.similaires > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    background: "#f5f5fe",
+                    border: "1px solid #e3e3fd",
+                    borderLeft: "4px solid #000091",
+                    borderRadius: 8,
+                    padding: "1rem 1.25rem",
+                    marginBottom: "1.5rem",
+                  }}
+                >
+                  <span style={{ fontSize: 28, fontWeight: 700, color: "#000091" }}>
+                    +{resultat.similaires}
+                  </span>
+                  <p style={{ margin: 0, fontSize: 15 }}>
+                    Votre voix n’est pas isolée : votre signalement rejoint{" "}
+                    <strong>
+                      {resultat.similaires} autre
+                      {resultat.similaires > 1 ? "s" : ""} doléance
+                      {resultat.similaires > 1 ? "s" : ""}
+                    </strong>{" "}
+                    de type <strong>{labelTheme(resultat.theme ?? null)}</strong> dans
+                    le secteur de {commune} ce mois-ci. Ensemble, elles pèsent.
+                  </p>
+                </div>
+              )}
 
               <div
                 style={{

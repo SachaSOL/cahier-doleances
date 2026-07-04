@@ -65,7 +65,27 @@ export async function POST(req: Request) {
       .single();
     if (erreurDoleance) throw erreurDoleance;
 
-    return NextResponse.json({ ok: true, doleance, elu, ...resultat });
+    // Signal collectif : combien de doléances du même thème dans le même secteur
+    // (département) ce mois-ci (hors celle qu'on vient de créer). Le niveau
+    // département donne un signal collectif fort tout en restant local.
+    const dept =
+      insee.startsWith("2A") || insee.startsWith("2B")
+        ? insee.slice(0, 2)
+        : insee.startsWith("97") || insee.startsWith("98")
+          ? insee.slice(0, 3)
+          : insee.slice(0, 2);
+    const debutMois = new Date();
+    debutMois.setDate(1);
+    debutMois.setHours(0, 0, 0, 0);
+    const { count } = await db
+      .from("doleances")
+      .select("id", { count: "exact", head: true })
+      .eq("theme", resultat.theme)
+      .like("code_insee", `${dept}%`)
+      .gte("created_at", debutMois.toISOString());
+    const similaires = Math.max(0, (count ?? 1) - 1);
+
+    return NextResponse.json({ ok: true, doleance, elu, similaires, ...resultat });
   } catch (err) {
     // Message lisible quel que soit le type d'erreur (Error, objet Supabase...)
     const message =

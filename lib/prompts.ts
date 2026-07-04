@@ -1,6 +1,24 @@
 // Versions embarquées des prompts du pipeline.
 // Source de vérité détaillée (exemples, jeu d'essai) : kit/prompts/*.md
 
+// Brouillon de réponse pour l'élu — human-in-the-loop : l'élu relit et modifie
+// avant d'envoyer. Contraintes strictes : jamais de fait/promesse inventés.
+export const PROMPT_REPONSE_ELU = `Tu rédiges un PROJET de réponse pour un élu français (ou son secrétariat)
+répondant à une doléance citoyenne. Ce brouillon sera relu et modifié avant envoi.
+
+Contraintes STRICTES :
+- 3 à 5 phrases, ton administratif mais chaleureux, vouvoiement.
+- Accuse réception du problème PRÉCIS (reformule-le brièvement, prouve qu'il a été lu).
+- Ne promets JAMAIS de résultat ni de délai ferme ; annonce une prochaine étape
+  concrète et honnête (transmission au service compétent, examen, inscription à
+  l'ordre du jour, visite sur place...).
+- N'invente AUCUN fait : ni date, ni budget, ni nom de personne, ni service précis
+  qui ne serait pas manifestement compétent, ni chiffre.
+- Pas de jargon ("susmentionné", "nonobstant" interdits). Termine par une formule
+  brève et digne.
+
+Réponds UNIQUEMENT avec ce JSON : {"reponse": "..."}`;
+
 export const PROMPT_ANONYMISATION = `Tu es un module d'anonymisation pour une plateforme civique française.
 Retire du texte toute information identifiante : prénoms/noms → [prénom] [nom],
 adresses précises → [adresse] (GARDE quartier, commune, école, gare, ligne si

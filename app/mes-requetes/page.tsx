@@ -29,6 +29,7 @@ type Doleance = {
   resume: string | null;
   statut: string;
   code_insee: string;
+  commune_nom: string | null;
   created_at: string;
   reponses: Reponse[];
 };
@@ -67,6 +68,7 @@ export default function MesRequetesPage() {
   const [themeActif, setThemeActif] = useState<string | null>(null);
   const [reponseEnCours, setReponseEnCours] = useState<Record<string, string>>({});
   const [envoiId, setEnvoiId] = useState<string | null>(null);
+  const [genId, setGenId] = useState<string | null>(null);
 
   // Mode sélection multiple.
   const [selection, setSelection] = useState(false);
@@ -126,6 +128,22 @@ export default function MesRequetesPage() {
       .sort((a, b) => b.value - a.value);
   }, [doleances]);
 
+  // Signaux émergents : les couples (thème + commune) qui reviennent le plus.
+  const signaux = useMemo(() => {
+    const groupes: Record<string, { theme: string; commune: string; count: number }> = {};
+    doleances.forEach((d) => {
+      const theme = d.theme ?? "autres";
+      const commune = d.commune_nom ?? d.code_insee;
+      const cle = `${theme}|${commune}`;
+      if (!groupes[cle]) groupes[cle] = { theme, commune, count: 0 };
+      groupes[cle].count++;
+    });
+    return Object.values(groupes)
+      .filter((g) => g.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [doleances]);
+
   const doleancesTheme = useMemo(
     () => doleances.filter((d) => (d.theme ?? "autres") === themeActif),
     [doleances, themeActif]
@@ -170,6 +188,24 @@ export default function MesRequetesPage() {
       setDoleances((cur) =>
         cur.map((x) => (x.id === id ? { ...x, statut: "en_traitement" } : x))
       );
+    }
+  };
+
+  // Génère un brouillon de réponse (IA) et le place dans le champ, éditable.
+  const genererReponse = async (id: string, texteDoleance: string) => {
+    setGenId(id);
+    try {
+      const r = await fetch("/api/generer-reponse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texte: texteDoleance }),
+      });
+      const d = await r.json();
+      if (d.ok && d.reponse) {
+        setReponseEnCours((cur) => ({ ...cur, [id]: d.reponse }));
+      }
+    } finally {
+      setGenId(null);
     }
   };
 
@@ -292,6 +328,52 @@ export default function MesRequetesPage() {
             </div>
           ))}
         </div>
+
+        {signaux.length > 0 && (
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #e5e5e5",
+              borderLeft: "4px solid #b34000",
+              borderRadius: 8,
+              padding: "1rem 1.25rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>
+              <span aria-hidden="true">📈 </span>Signaux émergents
+            </h2>
+            <p style={{ margin: "0 0 10px", fontSize: 13, color: "#666" }}>
+              Les problèmes qui reviennent le plus sur votre territoire — à
+              regarder en priorité.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {signaux.map((s) => (
+                <button
+                  key={`${s.theme}-${s.commune}`}
+                  type="button"
+                  onClick={() => ouvrirTheme(s.theme)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "#f5f5fe",
+                    border: "1px solid #e3e3fd",
+                    borderRadius: 999,
+                    padding: "6px 14px",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  <span style={{ fontWeight: 700, color: "#b34000" }}>{s.count}×</span>
+                  <span>
+                    {labelTheme(s.theme)} · {s.commune}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <details className="fr-mb-3w">
           <summary style={{ cursor: "pointer", color: "#000091" }}>Changer de territoire</summary>
@@ -557,10 +639,20 @@ export default function MesRequetesPage() {
                               Marquer « en cours de traitement »
                             </button>
                           )}
+                          <div style={{ marginBottom: 6 }}>
+                            <button
+                              type="button"
+                              className="fr-btn fr-btn--sm fr-btn--tertiary"
+                              disabled={genId === d.id}
+                              onClick={() => genererReponse(d.id, d.texte_anonymise)}
+                            >
+                              {genId === d.id ? "Rédaction en cours…" : "✨ Générer une réponse (IA)"}
+                            </button>
+                          </div>
                           <textarea
                             className="fr-input"
-                            rows={2}
-                            placeholder="Rédiger une réponse…"
+                            rows={4}
+                            placeholder="Rédiger une réponse… ou générer un brouillon avec l’IA, puis l’ajuster."
                             value={reponseEnCours[d.id] ?? ""}
                             onChange={(e) =>
                               setReponseEnCours((cur) => ({ ...cur, [d.id]: e.target.value }))
