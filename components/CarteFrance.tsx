@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
+import { departementsDeRegion } from "@/lib/territoire";
 
 // Carte de France interactive facon Parcoursup : on descend région → département
 // → commune. Chaque territoire est coloré selon son nombre de doléances.
@@ -33,8 +34,10 @@ function lerp(c: number, max: number): string {
 
 export function CarteFrance({
   onCommune,
+  theme = "",
 }: {
   onCommune: (insee: string, nom: string) => void;
+  theme?: string;
 }) {
   const [niveau, setNiveau] = useState<Niveau>("region");
   const [region, setRegion] = useState<Lieu | null>(null);
@@ -51,12 +54,13 @@ export function CarteFrance({
     setHover(null);
     (async () => {
       try {
+        const t = theme ? `&theme=${theme}` : "";
         let feats: Feat[] = [];
         let cnt: Record<string, number> = {};
         if (niveau === "region") {
           const [geo, stats] = await Promise.all([
             fetch(REGIONS_URL).then((r) => r.json() as Promise<FeatureCollection>),
-            fetch("/api/stats?niveau=region").then((r) => r.json()),
+            fetch(`/api/stats?niveau=region${t}`).then((r) => r.json()),
           ]);
           feats = geo.features as Feat[];
           cnt = toMap(stats.counts as CountRow[]);
@@ -66,17 +70,18 @@ export function CarteFrance({
             deptsAll.current = g.features as Feat[];
           }
           const stats = await fetch(
-            `/api/stats?niveau=departement&region=${region.code}`
+            `/api/stats?niveau=departement&region=${region.code}${t}`
           ).then((r) => r.json());
+          const allDepts = await departementsDeRegion(region.code);
           cnt = toMap(stats.counts as CountRow[]);
-          const codes = new Set(Object.keys(cnt));
+          const codes = new Set(allDepts);
           feats = deptsAll.current.filter((f) => codes.has(f.properties.code));
         } else if (niveau === "commune" && dept) {
           const [geo, stats] = await Promise.all([
             fetch(
               `https://geo.api.gouv.fr/communes?codeDepartement=${dept.code}&fields=nom,code&format=geojson&geometry=contour`
             ).then((r) => r.json() as Promise<FeatureCollection>),
-            fetch(`/api/stats?niveau=commune&dept=${dept.code}`).then((r) => r.json()),
+            fetch(`/api/stats?niveau=commune&dept=${dept.code}${t}`).then((r) => r.json()),
           ]);
           feats = geo.features as Feat[];
           cnt = toMap(stats.counts as CountRow[]);
@@ -95,7 +100,7 @@ export function CarteFrance({
     return () => {
       annule = true;
     };
-  }, [niveau, region, dept]);
+  }, [niveau, region, dept, theme]);
 
   const { path, maxCount } = useMemo(() => {
     if (features.length === 0) return { path: null, maxCount: 1 };

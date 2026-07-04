@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       .upsert(
         {
           fc_sub_mock: fc_sub_mock ?? "fc-demo-invite",
-          tranche_age: tranche_age ?? "25-34",
+          tranche_age: tranche_age || "25-34",
           code_insee: insee,
         },
         { onConflict: "fc_sub_mock" }

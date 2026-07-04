@@ -2,24 +2,28 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { departementsDeRegion } from "@/lib/territoire";
 
-// GET /api/stats?niveau=region
-// GET /api/stats?niveau=departement&region=53
-// GET /api/stats?niveau=commune&dept=35
-// Renvoie le nombre de doléances par territoire, pour colorer la carte.
+// GET /api/stats?niveau=region[&theme=sante][&statut=deposee]
+// GET /api/stats?niveau=departement&region=53[&theme=...]
+// GET /api/stats?niveau=commune&dept=35[&theme=...]
+// Nombre de doléances par territoire (optionnellement filtré par thème/statut),
+// pour colorer la carte à chaque niveau.
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
   const niveau = p.get("niveau") ?? "region";
+  const theme = p.get("theme") || null;
+  const statut = p.get("statut") || null;
   const db = supabaseAdmin();
 
   const compteDepts = async (depts: string[]) => {
     let q = db.from("doleances").select("id", { count: "exact", head: true });
     if (depts.length) q = q.or(depts.map((d) => `code_insee.like.${d}%`).join(","));
+    if (theme) q = q.eq("theme", theme);
+    if (statut) q = q.eq("statut", statut);
     const { count } = await q;
     return count ?? 0;
   };
 
   if (niveau === "region") {
-    // 13 régions métropolitaines (codes connus).
     const regions = ["11", "24", "27", "28", "32", "44", "52", "53", "75", "76", "84", "93", "94"];
     const counts = await Promise.all(
       regions.map(async (code) => ({
@@ -41,11 +45,10 @@ export async function GET(req: Request) {
 
   if (niveau === "commune") {
     const dept = p.get("dept") ?? "";
-    const { data } = await db
-      .from("doleances")
-      .select("code_insee")
-      .like("code_insee", `${dept}%`)
-      .limit(100000);
+    let q = db.from("doleances").select("code_insee").like("code_insee", `${dept}%`).limit(100000);
+    if (theme) q = q.eq("theme", theme);
+    if (statut) q = q.eq("statut", statut);
+    const { data } = await q;
     const map: Record<string, number> = {};
     (data ?? []).forEach((d) => {
       map[d.code_insee] = (map[d.code_insee] ?? 0) + 1;

@@ -18,9 +18,12 @@ type ReponseDepot = {
   erreur?: string;
 };
 
+const TRANCHES = ["18-24", "25-34", "35-49", "50-64", "65+"];
+
 export default function DeposerPage() {
   const [message, setMessage] = useState("");
   const [commune, setCommune] = useState("");
+  const [trancheAge, setTrancheAge] = useState("");
   const [envoi, setEnvoi] = useState(false);
   const [resultat, setResultat] = useState<ReponseDepot | null>(null);
 
@@ -35,6 +38,7 @@ export default function DeposerPage() {
         body: JSON.stringify({
           texte: message,
           commune,
+          tranche_age: trancheAge,
           fc_sub_mock: getFcSub(),
         }),
       });
@@ -146,6 +150,32 @@ export default function DeposerPage() {
                     required: true,
                   }}
                 />
+              </div>
+
+              <div className="fr-mt-3w">
+                <label className="fr-label" htmlFor="tranche-age">
+                  Votre tranche d’âge
+                  <span className="fr-hint-text">
+                    Sert uniquement aux statistiques anonymes. Aucune date de
+                    naissance n’est collectée.
+                  </span>
+                </label>
+                <select
+                  className="fr-select"
+                  id="tranche-age"
+                  value={trancheAge}
+                  onChange={(event) => setTrancheAge(event.target.value)}
+                  required
+                >
+                  <option value="" disabled>
+                    Sélectionnez…
+                  </option>
+                  {TRANCHES.map((t) => (
+                    <option key={t} value={t}>
+                      {t} ans
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="fr-mt-4w">

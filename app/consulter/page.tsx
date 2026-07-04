@@ -1,13 +1,38 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as ReTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
 import { CarteFrance } from "@/components/CarteFrance";
 import { BarreFiltres } from "@/components/BarreFiltres";
 import { StatutBadge } from "@/components/StatutBadge";
-import { labelTheme } from "@/lib/statuts";
+import { labelTheme, THEME_LABELS, couleurTheme } from "@/lib/statuts";
 import type { Territoire } from "@/lib/territoire";
+
+const REGIONS: Record<string, string> = {
+  "11": "Île-de-France",
+  "24": "Centre-Val de Loire",
+  "27": "Bourgogne-Franche-Comté",
+  "28": "Normandie",
+  "32": "Hauts-de-France",
+  "44": "Grand Est",
+  "52": "Pays de la Loire",
+  "53": "Bretagne",
+  "75": "Nouvelle-Aquitaine",
+  "76": "Occitanie",
+  "84": "Auvergne-Rhône-Alpes",
+  "93": "Provence-Alpes-Côte d’Azur",
+  "94": "Corse",
+};
 
 type Reponse = { texte: string; created_at: string; auteur: string };
 type Doleance = {
@@ -40,7 +65,33 @@ export default function ConsulterPage() {
   const [fstatut, setFstatut] = useState("");
   const [ouvertes, setOuvertes] = useState<Record<string, boolean>>({});
   const [survol, setSurvol] = useState<string | null>(null);
-  const [mode, setMode] = useState<"carte" | "recherche">("carte");
+  const [mode, setMode] = useState<"carte" | "recherche" | "theme">("carte");
+  const [themeCarte, setThemeCarte] = useState("");
+  const [themeRank, setThemeRank] = useState("transports");
+  const [rank, setRank] = useState<{ code: string; nom: string; count: number }[]>([]);
+  const [rankChargement, setRankChargement] = useState(false);
+
+  useEffect(() => {
+    if (mode === "theme" && rank.length === 0 && !rankChargement) {
+      chargerClassement(themeRank);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  const chargerClassement = async (theme: string) => {
+    setThemeRank(theme);
+    setRankChargement(true);
+    try {
+      const r = await fetch(`/api/stats?niveau=region&theme=${theme}`).then((x) => x.json());
+      const rows = (r.counts as { code: string; count: number }[])
+        .map((c) => ({ code: c.code, nom: REGIONS[c.code] ?? c.code, count: c.count }))
+        .sort((a, b) => b.count - a.count);
+      setRank(rows);
+    } catch {
+      setRank([]);
+    }
+    setRankChargement(false);
+  };
 
   const rechercher = async (t: Territoire | null) => {
     setTerritoire(t);
@@ -83,32 +134,112 @@ export default function ConsulterPage() {
           </p>
         </div>
 
-        {/* Choix du mode : carte interactive ou recherche */}
+        {/* Choix du mode */}
         <div className="fr-btns-group fr-btns-group--inline-md fr-mb-2w">
-          <button
-            type="button"
-            className={mode === "carte" ? "fr-btn fr-btn--sm" : "fr-btn fr-btn--sm fr-btn--secondary"}
-            onClick={() => setMode("carte")}
-          >
-            Carte de France
-          </button>
-          <button
-            type="button"
-            className={mode === "recherche" ? "fr-btn fr-btn--sm" : "fr-btn fr-btn--sm fr-btn--secondary"}
-            onClick={() => setMode("recherche")}
-          >
-            Recherche par nom
-          </button>
+          {([
+            ["carte", "Carte de France"],
+            ["recherche", "Recherche par nom"],
+            ["theme", "Classement par thème"],
+          ] as const).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              className={mode === m ? "fr-btn fr-btn--sm" : "fr-btn fr-btn--sm fr-btn--secondary"}
+              onClick={() => setMode(m)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {mode === "carte" ? (
-          <CarteFrance
-            onCommune={(insee, nom) =>
-              rechercher({ niveau: "commune", code: insee, nom })
-            }
-          />
-        ) : (
+        {mode === "carte" && (
+          <>
+            <div className="fr-mb-2w" style={{ maxWidth: 340 }}>
+              <label className="fr-label" htmlFor="theme-carte">
+                Colorer la carte par thème
+              </label>
+              <select
+                className="fr-select"
+                id="theme-carte"
+                value={themeCarte}
+                onChange={(e) => setThemeCarte(e.target.value)}
+              >
+                <option value="">Tous les thèmes</option>
+                {Object.entries(THEME_LABELS).map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <CarteFrance
+              theme={themeCarte}
+              onCommune={(insee, nom) => {
+                setFtheme(themeCarte);
+                rechercher({ niveau: "commune", code: insee, nom });
+              }}
+            />
+          </>
+        )}
+
+        {mode === "recherche" && (
           <SelecteurTerritoire value={territoire} onChange={rechercher} />
+        )}
+
+        {mode === "theme" && (
+          <div>
+            <div className="fr-mb-2w" style={{ maxWidth: 340 }}>
+              <label className="fr-label" htmlFor="theme-rank">
+                Choisir un thème
+              </label>
+              <select
+                className="fr-select"
+                id="theme-rank"
+                value={themeRank}
+                onChange={(e) => chargerClassement(e.target.value)}
+              >
+                {Object.entries(THEME_LABELS).map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <h2 className="fr-h5">
+              Régions les plus concernées — {labelTheme(themeRank)}
+            </h2>
+            {rankChargement ? (
+              <p>Chargement…</p>
+            ) : rank.length === 0 ? (
+              <p className="fr-text--sm" style={{ color: "#666" }}>
+                Sélectionnez un thème pour afficher le classement.
+              </p>
+            ) : (
+              <div style={{ width: "100%", height: 420 }}>
+                <ResponsiveContainer>
+                  <BarChart
+                    data={rank}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                  >
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="nom"
+                      width={150}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <ReTooltip formatter={(v) => `${v} doléances`} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                      {rank.map((r) => (
+                        <Cell key={r.code} fill={couleurTheme(themeRank)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
         )}
 
         {doleances !== null && doleances.length > 0 && (

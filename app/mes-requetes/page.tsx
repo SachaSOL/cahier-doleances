@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Cell, Pie, PieChart, Tooltip } from "recharts";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { StartDsfrOnHydration } from "../../dsfr-bootstrap";
 import { SelecteurTerritoire } from "@/components/SelecteurTerritoire";
 import { StatutBadge } from "@/components/StatutBadge";
@@ -50,6 +60,7 @@ export default function MesRequetesPage() {
   const [elu, setEluState] = useState<EluSession | null>(null);
   const [territoire, setTerritoire] = useState<Territoire | null>(null);
   const [doleances, setDoleances] = useState<Doleance[]>([]);
+  const [ageData, setAgeData] = useState<{ tranche: string; count: number }[]>([]);
   const [chargement, setChargement] = useState(true);
 
   // Panneau latéral (drawer) ouvert sur un thème.
@@ -82,8 +93,13 @@ export default function MesRequetesPage() {
       );
       const d = await r.json();
       setDoleances(d.doleances ?? []);
+      const a = await fetch(
+        `/api/stats-age?niveau=${t.niveau}&code=${encodeURIComponent(t.code)}`
+      ).then((x) => x.json());
+      setAgeData(a.counts ?? []);
     } catch {
       setDoleances([]);
+      setAgeData([]);
     }
     setChargement(false);
   }, []);
@@ -373,6 +389,26 @@ export default function MesRequetesPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        )}
+
+        {ageData.length > 0 && (
+          <div className="fr-mt-5w">
+            <h2 className="fr-h4">Profil des citoyens par tranche d’âge</h2>
+            <p className="fr-text--sm" style={{ color: "#666", marginTop: "-0.5rem" }}>
+              Répartition anonyme des personnes ayant déposé une doléance sur ce
+              territoire.
+            </p>
+            <div style={{ width: "100%", height: 260 }}>
+              <ResponsiveContainer>
+                <BarChart data={ageData} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
+                  <XAxis dataKey="tranche" tick={{ fontSize: 13 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v) => `${v} doléances`} />
+                  <Bar dataKey="count" fill="#000091" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}
